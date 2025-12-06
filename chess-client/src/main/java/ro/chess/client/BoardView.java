@@ -1,9 +1,5 @@
 package ro.chess.client;
 
-import com.github.bhlangonijr.chesslib.Board;
-import com.github.bhlangonijr.chesslib.Piece;
-import com.github.bhlangonijr.chesslib.Side;
-import com.github.bhlangonijr.chesslib.Square;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.image.ImageView;
@@ -14,32 +10,62 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import ro.chess.client.util.BoardUtils;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 public class BoardView extends GridPane {
   private final StackPane[][] cells = new StackPane[8][8];
-  private final Map<Square, ImageView> pieceViews = new HashMap<>();
-  private final Board board = new Board();
+  // board[row][col] = piece like "wK", "bQ", null for empty
+  private String[][] board = new String[8][8];
   private BiConsumer<String,String> onMoveAttempt;
 
   private String selected;
-  private double cellSize = 80; // schimbă cu setCellSize()
+  private double cellSize = 80;
 
   public BoardView() {
     setHgap(0);
     setVgap(0);
     buildGrid();
-    setPosition(board.getFen());
+    // Set initial position
+    setPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1");
   }
 
   public void setCellSize(double size) { this.cellSize = size; rebuildSizes(); redraw(); }
   public void setOnMoveAttempt(BiConsumer<String,String> handler) { this.onMoveAttempt = handler; }
 
   public void setPosition(String fen) {
-    board.loadFromFen(fen);
+    parseFen(fen);
     redraw();
+  }
+
+  private void parseFen(String fen) {
+    // Clear board
+    for (int r = 0; r < 8; r++) {
+      for (int c = 0; c < 8; c++) {
+        board[r][c] = null;
+      }
+    }
+
+    String[] parts = fen.split(" ");
+    String[] ranks = parts[0].split("/");
+
+    for (int r = 0; r < 8 && r < ranks.length; r++) {
+      int col = 0;
+      for (char ch : ranks[r].toCharArray()) {
+        if (Character.isDigit(ch)) {
+          col += Character.getNumericValue(ch);
+        } else {
+          board[r][col] = fenCharToPiece(ch);
+          col++;
+        }
+      }
+    }
+  }
+
+  private String fenCharToPiece(char ch) {
+    boolean isWhite = Character.isUpperCase(ch);
+    String side = isWhite ? "w" : "b";
+    char type = Character.toUpperCase(ch);
+    return side + type;
   }
 
   private void buildGrid() {
@@ -57,7 +83,7 @@ public class BoardView extends GridPane {
         cell.setOnMouseClicked(e -> {
           if (e.getButton() != MouseButton.PRIMARY) return;
           var sq = BoardUtils.toSquare(rr, cc);
-          handleClick(sq);
+          handleClick(sq, rr, cc);
         });
 
         cells[r][c] = cell;
@@ -76,36 +102,32 @@ public class BoardView extends GridPane {
   }
 
   private void redraw() {
-    pieceViews.clear();
+    // Remove all piece images
     for (var row : cells) for (var cell : row)
       cell.getChildren().removeIf(n -> n instanceof ImageView);
 
-    for (Square sq : Square.values()) {
-      if (sq == Square.NONE) continue;
-      Piece piece = board.getPiece(sq);
-      if (piece == Piece.NONE) continue;
+    // Add piece images based on board state
+    for (int r = 0; r < 8; r++) {
+      for (int c = 0; c < 8; c++) {
+        String piece = board[r][c];
+        if (piece == null) continue;
 
-      ImageView iv = new ImageView(Assets.piece(pieceKey(piece)));
-      iv.setPreserveRatio(true);
-      iv.setFitWidth(cellSize * 0.8);
-      iv.setFitHeight(cellSize * 0.8);
-      iv.setMouseTransparent(true);
+        ImageView iv = new ImageView(Assets.piece(piece));
+        iv.setPreserveRatio(true);
+        iv.setFitWidth(cellSize * 0.8);
+        iv.setFitHeight(cellSize * 0.8);
+        iv.setMouseTransparent(true);
 
-      int col = BoardUtils.fileIndex(sq.getFile().getNotation().charAt(0));
-      int row = BoardUtils.rankIndex(sq.getRank().getNotation().charAt(0));
-      if (row < 0 || row > 7 || col < 0 || col > 7) continue;
-
-      cells[row][col].getChildren().add(iv);
-      pieceViews.put(sq, iv);
+        cells[r][c].getChildren().add(iv);
+      }
     }
     clearSelection();
   }
 
-  private void handleClick(String sq) {
-    Square s = Square.fromValue(sq.toUpperCase());
-    Piece p = board.getPiece(s);
+  private void handleClick(String sq, int row, int col) {
+    String piece = board[row][col];
     if (selected == null) {
-      if (p != Piece.NONE) {
+      if (piece != null) {
         selected = sq;
         highlight(sq, true);
         setCursor(Cursor.HAND);
@@ -114,13 +136,6 @@ public class BoardView extends GridPane {
     }
     if (onMoveAttempt != null) onMoveAttempt.accept(selected, sq);
     clearSelection();
-  }
-
-  public void applyMoveLocal(String from, String to, String promo) {
-    var move = new com.github.bhlangonijr.chesslib.move.Move(
-            Square.fromValue(from.toUpperCase()), Square.fromValue(to.toUpperCase()));
-    board.doMove(move);
-    redraw();
   }
 
   private void highlight(String sq, boolean on) {
@@ -135,19 +150,5 @@ public class BoardView extends GridPane {
     if (selected != null) highlight(selected, false);
     selected = null;
     setCursor(Cursor.DEFAULT);
-  }
-
-  private String pieceKey(Piece piece) {
-    String side = (piece.getPieceSide() == Side.WHITE) ? "w" : "b";
-    String type = switch (piece.getPieceType()) {
-      case KING   -> "K";
-      case QUEEN  -> "Q";
-      case ROOK   -> "R";
-      case BISHOP -> "B";
-      case KNIGHT -> "N";
-      case PAWN   -> "P";
-      default     -> "";
-    };
-    return side + type;
   }
 }

@@ -7,7 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-import ro.chess.server.game.GameService;
+import ro.chess.server.service.GameService;
+
 
 @Component
 @RequiredArgsConstructor
@@ -29,6 +30,14 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 String from = root.path("from").asText();
                 String to = root.path("to").asText();
                 String response = game.applyMove(from, to, null);
+                s.sendMessage(new TextMessage(response));
+            }
+            case "RESET_GAME" -> {
+                String response = game.resetGame();
+                s.sendMessage(new TextMessage(response));
+            }
+            case "UNDO_MOVE" -> {
+                String response = game.undoMove();
                 s.sendMessage(new TextMessage(response));
             }
 

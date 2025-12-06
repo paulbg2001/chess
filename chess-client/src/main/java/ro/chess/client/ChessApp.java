@@ -43,6 +43,12 @@ public class ChessApp extends Application {
         wsLog.setPrefRowCount(3);
         wsLog.setStyle("-fx-font-family: Consolas, Menlo, Monospaced; -fx-font-size: 11px;");
 
+        Button undoBtn = new Button("↩ Undo");
+        undoBtn.setOnAction(e -> {
+            if (connected.get()) {
+                sendJson("{\"type\":\"UNDO_MOVE\"}");
+            }
+        });
         Button clearBtn = new Button("Clear");
         clearBtn.setOnAction(e -> wsLog.clear());
         Button copyBtn = new Button("Copy");
@@ -52,7 +58,7 @@ public class ChessApp extends Application {
             cc.putString(wsLog.getText());
             cb.setContent(cc);
         });
-        HBox topBar = new HBox(10, statusLbl, new Separator(), clearBtn, copyBtn);
+        HBox topBar = new HBox(10, statusLbl, new Separator(), undoBtn, clearBtn, copyBtn);
         topBar.setPadding(new Insets(4, 8, 4, 8));
 
         board = new BoardView();
@@ -113,12 +119,18 @@ public class ChessApp extends Application {
                                 case "GAME_OVER" -> {
                                     String reason = root.path("reason").asText();
                                     String result = root.path("result").asText();
+                                    String winner = root.path("winner").asText("");
                                     String fen = root.path("fen").asText();
                                     Platform.runLater(() -> {
                                         board.setPosition(fen);
-                                        updateStatus("GAME OVER: " + result + " (" + reason + ")");
-                                        // optional: dialog
-                                        new Alert(Alert.AlertType.INFORMATION, "Game Over: " + result + " (" + reason + ")").showAndWait();
+                                        updateStatus("GAME OVER: " + winner + " a câștigat!");
+                                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                                        alert.setTitle("Joc terminat");
+                                        alert.setHeaderText(winner + " a câștigat!");
+                                        alert.setContentText("Rezultat: " + result);
+                                        alert.showAndWait();
+                                        // După OK, resetează jocul
+                                        sendJson("{\"type\":\"RESET_GAME\"}");
                                     });
                                 }
                                 case "ERROR" -> updateStatus("ERROR: " + root.path("message").asText("illegal move"));

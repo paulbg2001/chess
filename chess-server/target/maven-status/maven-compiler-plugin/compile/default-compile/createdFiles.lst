@@ -1,7 +1,0 @@
-ro/chess/server/config/GameSocketHandler.class
-ro/chess/server/service/GameService$MoveAppliedMsg.class
-ro/chess/server/service/GameService.class
-ro/chess/server/ChessServerApplication.class
-ro/chess/server/service/GameService$GameOverMsg.class
-ro/chess/server/config/WebSocketConfig.class
-ro/chess/server/service/GameService$ErrorMsg.class

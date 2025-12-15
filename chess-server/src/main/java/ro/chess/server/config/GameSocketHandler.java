@@ -137,7 +137,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 log.info("[MOVE] {} muta: {} -> {}", playerColor, from, to);
                 
                 // Aplicam mutarea si trimitem rezultatul la ambii jucatori
-                String response = game.applyMove(from, to, null);
+                String response = game.applyMove(from, to);
                 broadcast(response);
             }
             

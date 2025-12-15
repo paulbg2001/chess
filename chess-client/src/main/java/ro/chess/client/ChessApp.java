@@ -7,7 +7,14 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -58,9 +65,9 @@ public class ChessApp extends Application {
 
         VBox content = new VBox(10);
         content.getChildren().addAll(
-            new Label("Adresa server (IP sau hostname):"),
-            ipField,
-            new Label("Port implicit: 8080")
+                new Label("Adresa server (IP sau hostname):"),
+                ipField,
+                new Label("Port implicit: 8080")
         );
         content.setPadding(new Insets(20));
 
@@ -75,11 +82,11 @@ public class ChessApp extends Application {
         });
 
         dialog.showAndWait().ifPresentOrElse(
-            host -> {
-                serverHost = host.isEmpty() ? "localhost" : host;
-                initializeGame(stage);
-            },
-            () -> Platform.exit()
+                host -> {
+                    serverHost = host.isEmpty() ? "localhost" : host;
+                    initializeGame(stage);
+                },
+                () -> Platform.exit()
         );
     }
 
@@ -202,7 +209,6 @@ public class ChessApp extends Application {
                                             alert.setHeaderText(winner + " a câștigat!");
                                             alert.setContentText("Rezultat: " + result);
                                             alert.showAndWait();
-                                            // După OK, resetează jocul
                                             sendJson("{\"type\":\"RESET_GAME\"}");
                                         });
                                     }
@@ -210,7 +216,8 @@ public class ChessApp extends Application {
                                         String msg = root.path("message").asText("eroare");
                                         Platform.runLater(() -> updateStatus("ERROR: " + msg));
                                     }
-                                    default -> {}
+                                    default -> {
+                                    }
                                 }
                             } catch (Exception ignored) {
                             }

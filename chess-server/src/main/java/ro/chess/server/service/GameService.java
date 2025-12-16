@@ -1,11 +1,11 @@
 package ro.chess.server.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ro.chess.server.dto.ErrorMsg;
 import ro.chess.server.dto.GameOverMsg;
 import ro.chess.server.dto.MoveAppliedMsg;
+import ro.chess.server.model.GameState;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -17,7 +17,6 @@ import java.util.Deque;
  * Orice piesa poate fi mutata oriunde (cu exceptia capturarii propriilor piese).
  * Jocul se termina cand un rege este capturat.
  */
-@Slf4j
 @Service
 public class GameService {
 
@@ -33,29 +32,9 @@ public class GameService {
     // Istoric pentru undo - stocheaza snapshot-uri ale starii jocului
     private final Deque<GameState> history = new ArrayDeque<>();
 
-    /**
-     * Clasa interna care retine starea jocului la un moment dat.
-     * Folosita pentru functionalitatea de undo.
-     */
-    private static class GameState {
-        final String[][] board;      // Copia tablei
-        final boolean whiteTurn;     // Al cui rand era
-
-        GameState(String[][] b, boolean wt) {
-            // Facem o copie profunda a tablei
-            this.board = new String[8][8];
-            for (int r = 0; r < 8; r++) {
-                for (int c = 0; c < 8; c++) {
-                    this.board[r][c] = b[r][c];
-                }
-            }
-            this.whiteTurn = wt;
-        }
-    }
-
     public GameService() {
         resetBoard();
-        log.info("[GAME] Serviciul de joc initializat");
+//        log.info("[GAME] Serviciul de joc initializat");
     }
 
     /**
@@ -78,7 +57,7 @@ public class GameService {
     public String resetGame() throws Exception {
         resetBoard();
         history.clear();
-        log.info("[GAME] Joc resetat la pozitia initiala");
+//        log.info("[GAME] Joc resetat la pozitia initiala");
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }
 
@@ -88,7 +67,7 @@ public class GameService {
      */
     public String undoMove() throws Exception {
         if (history.isEmpty()) {
-            log.warn("[UNDO] Nu exista mutari de anulat");
+//            log.warn("[UNDO] Nu exista mutari de anulat");
             return objectMapper.writeValueAsString(new ErrorMsg("no moves to undo"));
         }
 
@@ -98,12 +77,12 @@ public class GameService {
         // Restauram tabla si randul
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
-                board[r][c] = prev.board[r][c];
+                board[r][c] = prev.getBoard()[r][c];
             }
         }
-        whiteTurn = prev.whiteTurn;
+        whiteTurn = prev.isWhiteTurn();
 
-        log.info("[UNDO] Mutare anulata. Mutari ramase in istoric: {}", history.size());
+//        log.info("[UNDO] Mutare anulata. Mutari ramase in istoric: {}", history.size());
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }
 
@@ -173,21 +152,21 @@ public class GameService {
         // Validam ca indicii sunt in limite
         if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7 ||
                 toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) {
-            log.warn("[MOVE] Patrat invalid: {} -> {}", from, to);
+//            log.warn("[MOVE] Patrat invalid: {} -> {}", from, to);
             return objectMapper.writeValueAsString(new ErrorMsg("invalid square"));
         }
 
         // Luam piesa de pe patratul sursa
         String piece = board[fromRow][fromCol];
         if (piece == null) {
-            log.warn("[MOVE] Nu exista piesa pe {}", from);
+//            log.warn("[MOVE] Nu exista piesa pe {}", from);
             return objectMapper.writeValueAsString(new ErrorMsg("no piece at " + from));
         }
 
         // Verificam daca e randul corect
         boolean isWhitePiece = piece.startsWith("w");
         if (isWhitePiece != whiteTurn) {
-            log.warn("[MOVE] Nu e randul jucatorului. Piesa: {}, Rand alb: {}", piece, whiteTurn);
+//            log.warn("[MOVE] Nu e randul jucatorului. Piesa: {}, Rand alb: {}", piece, whiteTurn);
             return objectMapper.writeValueAsString(new ErrorMsg("not your turn"));
         }
 
@@ -196,7 +175,7 @@ public class GameService {
 
         // Nu poti captura propria piesa
         if (captured != null && captured.startsWith(piece.substring(0, 1))) {
-            log.warn("[MOVE] Incercare de capturare a propriei piese: {} pe {}", captured, to);
+//            log.warn("[MOVE] Incercare de capturare a propriei piese: {} pe {}", captured, to);
             return objectMapper.writeValueAsString(new ErrorMsg("cannot capture own piece"));
         }
 
@@ -207,24 +186,24 @@ public class GameService {
         board[toRow][toCol] = piece;
         board[fromRow][fromCol] = null;
 
-        log.info("[MOVE] {} muta {} de pe {} pe {}",
-                isWhitePiece ? "WHITE" : "BLACK", piece, from, to);
+//        log.info("[MOVE] {} muta {} de pe {} pe {}",
+//                isWhitePiece ? "WHITE" : "BLACK", piece, from, to);
 
         if (captured != null) {
-            log.info("[CAPTURE] Piesa capturata: {}", captured);
+//            log.info("[CAPTURE] Piesa capturata: {}", captured);
         }
 
         // Verificam daca regele a fost capturat -> joc terminat
         if (captured != null && captured.endsWith("K")) {
             String winner = isWhitePiece ? "WHITE" : "BLACK";
             String result = isWhitePiece ? "1-0" : "0-1";
-            log.info("[GAME OVER] {} a castigat prin capturarea regelui!", winner);
+//            log.info("[GAME OVER] {} a castigat prin capturarea regelui!", winner);
             return objectMapper.writeValueAsString(new GameOverMsg("CHECKMATE", result, winner, generateFen()));
         }
 
         // Schimbam randul
         whiteTurn = !whiteTurn;
-        log.debug("[TURN] Acum e randul: {}", whiteTurn ? "WHITE" : "BLACK");
+//        log.debug("[TURN] Acum e randul: {}", whiteTurn ? "WHITE" : "BLACK");
 
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }

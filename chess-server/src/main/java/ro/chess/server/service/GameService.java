@@ -13,7 +13,6 @@ import java.util.Deque;
 /**
  * Serviciu care gestioneaza logica jocului de sah.
  * <p>
- * NOTA: Aceasta versiune simplificata NU valideaza mutarile legale de sah!
  * Orice piesa poate fi mutata oriunde (cu exceptia capturarii propriilor piese).
  * Jocul se termina cand un rege este capturat.
  */

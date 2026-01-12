@@ -2,8 +2,6 @@ package ro.chess.server.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -24,10 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GameSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper om = new ObjectMapper();
-    private final GameService game;
+    private final GameService gameService;
 
-    public GameSocketHandler(GameService game) {
-        this.game = game;
+    public GameSocketHandler(GameService gameService) {
+        this.gameService = gameService;
     }
 
     // Map: sesiune -> culoare ("WHITE" sau "BLACK")
@@ -70,8 +68,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
         }
 
         // Trimitem mesaj de bun venit cu: culoarea, pozitia curenta, daca e randul lui
-        String fen = game.getCurrentFen();
-        boolean yourTurn = game.isWhiteTurn() == color.equals("WHITE");
+        String fen = gameService.getCurrentFen();
+        boolean yourTurn = gameService.isWhiteTurn() == color.equals("WHITE");
 
         String welcomeMsg = om.writeValueAsString(Map.of(
                 "type", "WELCOME",
@@ -131,7 +129,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
 
                 // Verificam daca e randul acestui jucator
                 boolean isWhite = "WHITE".equals(playerColor);
-                if (game.isWhiteTurn() != isWhite) {
+                if (gameService.isWhiteTurn() != isWhite) {
 //                    log.warn("[MOVE] {} a incercat sa mute dar nu e randul lui!", playerColor);
                     s.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"Nu este randul tau!\"}"));
                     return;
@@ -140,19 +138,19 @@ public class GameSocketHandler extends TextWebSocketHandler {
 //                log.info("[MOVE] {} muta: {} -> {}", playerColor, from, to);
 
                 // Aplicam mutarea si trimitem rezultatul la ambii jucatori
-                String response = game.applyMove(from, to);
+                String response = gameService.applyMove(from, to);
                 broadcast(response);
             }
 
             case "RESET_GAME" -> {
 //                log.info("[RESET] {} a cerut reset", playerColor);
-                String response = game.resetGame();
+                String response = gameService.resetGame();
                 broadcast(response);
             }
 
             case "UNDO_MOVE" -> {
 //                log.info("[UNDO] {} a cerut undo", playerColor);
-                String response = game.undoMove();
+                String response = gameService.undoMove();
                 broadcast(response);
             }
 

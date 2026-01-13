@@ -1,24 +1,40 @@
 package ro.chess.client;
 
 import javafx.scene.image.Image;
-
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-public final class Assets {
-    private static final Map<String, Image> CACHE = new ConcurrentHashMap<>();
+/**
+ * Gestionam imaginile pieselor aici.
+ * Le incarcam o singura data si le tinem minte (cache) ca sa nu le citim de pe
+ * disc la fiecare frame.
+ */
+public class Assets {
+    // Aici tinem minte pozele deja incarcate: "wP" -> Poza cu Pion Alb
+    private static final Map<String, Image> cachePoze = new HashMap<>();
 
-    public static Image piece(String key) {
-        // key: wK, bQ, etc.
-        return CACHE.computeIfAbsent(key, k -> {
-            var url = Assets.class.getResource("/pieces/" + k + ".png");
-            if (url == null) {
-                throw new IllegalStateException("Missing piece image: " + k);
-            }
-            return new Image(url.toExternalForm(), 64, 64, true, true);
-        });
-    }
+    /**
+     * Da-mi poza pentru piesa ceruta (ex: "wK" = White King / Rege Alb).
+     */
+    public static Image getImaginePiesa(String numePiesa) {
+        // Daca am incarcat-o deja, o returnam direct
+        if (cachePoze.containsKey(numePiesa)) {
+            return cachePoze.get(numePiesa);
+        }
 
-    private Assets() {
+        // Daca nu, o cautam in fisiere
+        try {
+            // Calea catre poza: /pieces/wK.png
+            String cale = "/pieces/" + numePiesa + ".png";
+            // Incarcam imaginea
+            Image img = new Image(Assets.class.getResourceAsStream(cale), 64, 64, true, true);
+
+            // O tinem minte pentru data viitoare
+            cachePoze.put(numePiesa, img);
+            return img;
+        } catch (Exception e) {
+            System.err.println("Nu am gasit poza pentru: " + numePiesa);
+            return null;
+        }
     }
 }

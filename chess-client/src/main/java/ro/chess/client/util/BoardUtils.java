@@ -1,33 +1,35 @@
 package ro.chess.client.util;
 
-public final class BoardUtils {
-    private static final char[] FILES = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+/**
+ * Utilitare pentru coordonatele tablei de sah.
+ * Ne ajuta sa transformam numere (0,0) in stil sah (a8).
+ */
+public class BoardUtils {
+    private static final char[] COLOANE = { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' };
 
     /**
-     * row: 0..7 (de sus in jos), col: 0..7 (stanga->dreapta)
+     * Transforma indecsii din matrice in notatie de sah.
+     * Ex: rand 0, col 0 -> "a8"
      */
-    public static String toSquare(int row, int col) {
-        char file = FILES[col];     // a..h
-        int rank = 8 - row;         // 8 sus -> 1 jos
-        return "" + file + rank;
+    public static String toSquare(int rand, int coloana) {
+        char litera = COLOANE[coloana]; // a..h
+        int cifra = 8 - rand; // 8 e sus (index 0), 1 e jos (index 7)
+        return "" + litera + cifra;
     }
 
     /**
-     * Accepta 'a'..'h' sau 'A'..'H'
+     * Transforma litera coloanei ('a'..'h') in numar (0..7).
      */
-    public static int fileIndex(char file) {
-        char f = Character.toLowerCase(file);
-        return f - 'a';             // 0..7
+    public static int getIndexColoana(char litera) {
+        char f = Character.toLowerCase(litera);
+        return f - 'a'; // 'a' - 'a' = 0
     }
 
     /**
-     * Accepta '1'..'8' (sau orice char numeric)
+     * Transforma cifra randului ('1'..'8') in index (7..0).
      */
-    public static int rankIndex(char rank) {
-        int r = Character.getNumericValue(rank); // 1..8
-        return 8 - r;                             // 7..0
-    }
-
-    private BoardUtils() {
+    public static int getIndexRand(char cifraChar) {
+        int cifra = Character.getNumericValue(cifraChar); // '8' -> 8
+        return 8 - cifra; // 8 - 8 = 0 (primul rand de sus)
     }
 }

@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Primul care se conecteaza primeste ALB, al doilea NEGRU.
  */
 @Component
-//@RequiredArgsConstructor
 public class GameSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper om = new ObjectMapper();
@@ -51,16 +50,14 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 // Primul jucator -> ALB
                 whitePlayer = s;
                 color = "WHITE";
-//                log.info("[CONNECT] Jucator WHITE conectat. Session: {}", sessionId);
             } else if (blackPlayer == null) {
                 // Al doilea jucator -> NEGRU
                 blackPlayer = s;
                 color = "BLACK";
-//                log.info("[CONNECT] Jucator BLACK conectat. Session: {}", sessionId);
             } else {
                 // Jocul e plin, refuzam conexiunea
-//                log.warn("[REJECT] Conexiune refuzata - joc plin. Session: {}", sessionId);
-                s.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"Game is full. 2 players already connected.\"}"));
+                s.sendMessage(new TextMessage(
+                        "{\"type\":\"ERROR\",\"message\":\"Game is full. 2 players already connected.\"}"));
                 s.close();
                 return;
             }
@@ -75,10 +72,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 "type", "WELCOME",
                 "color", color,
                 "fen", fen,
-                "yourTurn", yourTurn
-        ));
+                "yourTurn", yourTurn));
         s.sendMessage(new TextMessage(welcomeMsg));
-//        log.debug("[SEND] Welcome -> {}: {}", color, welcomeMsg);
 
         // Notificam toti jucatorii despre numarul de conexiuni
         broadcastPlayerCount();
@@ -96,10 +91,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
             // Eliberam slotul corespunzator
             if (s == whitePlayer) {
                 whitePlayer = null;
-//                log.info("[DISCONNECT] Jucator WHITE deconectat. Status: {}", status);
             } else if (s == blackPlayer) {
                 blackPlayer = null;
-//                log.info("[DISCONNECT] Jucator BLACK deconectat. Status: {}", status);
             }
 
             // Notificam jucatorul ramas (daca exista)
@@ -120,45 +113,43 @@ public class GameSocketHandler extends TextWebSocketHandler {
         String type = root.path("type").asText("");
         String playerColor = players.get(s);
 
-//        log.debug("[RECV] {} -> {}", playerColor, payload);
-
         switch (type) {
-            case "MAKE_MOVE" -> {
+            case "MAKE_MOVE": {
                 String from = root.path("from").asText();
                 String to = root.path("to").asText();
 
                 // Verificam daca e randul acestui jucator
                 boolean isWhite = "WHITE".equals(playerColor);
                 if (gameService.isWhiteTurn() != isWhite) {
-//                    log.warn("[MOVE] {} a incercat sa mute dar nu e randul lui!", playerColor);
                     s.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"Nu este randul tau!\"}"));
                     return;
                 }
 
-//                log.info("[MOVE] {} muta: {} -> {}", playerColor, from, to);
-
                 // Aplicam mutarea si trimitem rezultatul la ambii jucatori
                 String response = gameService.applyMove(from, to);
                 broadcast(response);
+                break;
             }
 
-            case "RESET_GAME" -> {
-//                log.info("[RESET] {} a cerut reset", playerColor);
+            case "RESET_GAME": {
+                // Cineva a apasat Reset
                 String response = gameService.resetGame();
                 broadcast(response);
+                break;
             }
 
-            case "UNDO_MOVE" -> {
-//                log.info("[UNDO] {} a cerut undo", playerColor);
+            case "UNDO_MOVE": {
+                // Cineva a apasat Undo
                 String response = gameService.undoMove();
                 broadcast(response);
+                break;
             }
 
-            default -> {
-//                log.warn("[UNKNOWN] Tip necunoscut: {} de la {}", type, playerColor);
-                s.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"Unknown type\"}"));
-            }
+            default:
+                s.sendMessage(new TextMessage("{\"type\":\"ERROR\",\"message\":\"Comanda necunoscuta\"}"));
+                break;
         }
+
     }
 
     /**
@@ -169,11 +160,9 @@ public class GameSocketHandler extends TextWebSocketHandler {
 
         if (whitePlayer != null && whitePlayer.isOpen()) {
             whitePlayer.sendMessage(msg);
-//            log.debug("[BROADCAST] -> WHITE: {}", message);
         }
         if (blackPlayer != null && blackPlayer.isOpen()) {
             blackPlayer.sendMessage(msg);
-//            log.debug("[BROADCAST] -> BLACK: {}", message);
         }
     }
 
@@ -188,12 +177,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 "type", "PLAYERS_UPDATE",
                 "count", count,
                 "whiteConnected", whitePlayer != null,
-                "blackConnected", blackPlayer != null
-        ));
-
-//        log.info("[PLAYERS] Conectati: {}/2 (WHITE={}, BLACK={})",
-//                count, whitePlayer != null, blackPlayer != null);
-
+                "blackConnected", blackPlayer != null));
         broadcast(msg);
     }
 }

@@ -11,69 +11,72 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * Serviciu care gestioneaza logica jocului de sah.
- * <p>
- * Orice piesa poate fi mutata oriunde (cu exceptia capturarii propriilor piese).
- * Jocul se termina cand un rege este capturat.
+ * Serviciul principal care tine minte unde sunt piesele.
+ * Aici se intampla toata "magia" jocului.
  */
 @Service
 public class GameService {
 
-    // Tabla de joc: 8x8, null = patrat gol, altfel piesa (ex: "wK", "bQ", "wP")
-    // Formatul piesei: prima litera = culoare (w/b), a doua = tip (K/Q/R/B/N/P)
+    // Asta e tabla noastra de sah. E o matrice de 8 pe 8.
+    // Daca un patrat e null, inseamna ca e gol.
+    // Daca are text (ex: "wK", "bQ"), inseamna ca e o piesa acolo.
+    // w = white (alb), b = black (negru)
+    // K=King (Rege), Q=Queen (Regina), R=Rook (Tura), B=Bishop (Nebun), N=Knight
+    // (Cal), P=Pawn (Pion)
     private final String[][] board = new String[8][8];
 
+    // Tine minte al cui e randul.
     // true = randul albului, false = randul negrului
     private boolean whiteTurn = true;
 
+    // Folosit pentru a trimite mesaje JSON (inteleger serverul cu clientul)
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Istoric pentru undo - stocheaza snapshot-uri ale starii jocului
+    // Aici tinem minte mutarile ca sa putem da "Undo" (inapoi)
     private final Deque<GameState> history = new ArrayDeque<>();
 
     public GameService() {
+        // Cand porneste serverul, aranjam piesele
         resetBoard();
-//        log.info("[GAME] Serviciul de joc initializat");
     }
 
     /**
-     * Returneaza FEN-ul curent (reprezentarea pozitiei).
+     * Returneaza pozitia curenta sub forma de text (FEN).
+     * FEN e un standard ca sa descrii o tabla de sah prin text.
      */
     public String getCurrentFen() {
         return generateFen();
     }
 
     /**
-     * Returneaza true daca e randul albului.
+     * Ne zice daca e randul albului.
      */
     public boolean isWhiteTurn() {
         return whiteTurn;
     }
 
     /**
-     * Reseteaza tabla la pozitia initiala si sterge istoricul.
+     * Reseteaza tot jocul de la zero.
      */
     public String resetGame() throws Exception {
         resetBoard();
-        history.clear();
-//        log.info("[GAME] Joc resetat la pozitia initiala");
+        history.clear(); // Stergem istoricul
+        // Trimitem noua stare la jucatori
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }
 
     /**
-     * Anuleaza ultima mutare (undo).
-     * Restaureaza starea anterioara din istoric.
+     * Da o mutare inapoi (Undo).
      */
     public String undoMove() throws Exception {
         if (history.isEmpty()) {
-//            log.warn("[UNDO] Nu exista mutari de anulat");
-            return objectMapper.writeValueAsString(new ErrorMsg("no moves to undo"));
+            return objectMapper.writeValueAsString(new ErrorMsg("Nu am ce sa anulez!"));
         }
 
-        // Scoatem ultima stare din istoric
+        // Luam ultima stare salvata
         GameState prev = history.pop();
 
-        // Restauram tabla si randul
+        // Punem piesele inapoi cum erau
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 board[r][c] = prev.getBoard()[r][c];
@@ -81,25 +84,22 @@ public class GameService {
         }
         whiteTurn = prev.isWhiteTurn();
 
-//        log.info("[UNDO] Mutare anulata. Mutari ramase in istoric: {}", history.size());
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }
 
     /**
-     * Reseteaza tabla la pozitia standard de inceput.
-     * Rand 0 = rang 8 (piesele negre)
-     * Rand 7 = rang 1 (piesele albe)
+     * Functia care pune piesele la locurile lor de start.
      */
     private void resetBoard() {
-        // Golim tabla
+        // Mai intai stergem tot de pe tabla
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 board[r][c] = null;
             }
         }
 
-        // Piesele negre (randul 0 = rang 8)
-        // Ordinea: Tura, Cal, Nebun, Regina, Rege, Nebun, Cal, Tura
+        // Punem piesele negre sus (randul 0 al matricei)
+        // Ordine: Tura, Cal, Nebun, Regina, Rege, Nebun, Cal, Tura
         board[0][0] = "bR";
         board[0][1] = "bN";
         board[0][2] = "bB";
@@ -109,12 +109,12 @@ public class GameService {
         board[0][6] = "bN";
         board[0][7] = "bR";
 
-        // Pionii negri (randul 1 = rang 7)
+        // Punem pionii negri (randul 1 al matricei)
         for (int c = 0; c < 8; c++) {
             board[1][c] = "bP";
         }
 
-        // Piesele albe (randul 7 = rang 1)
+        // Punem piesele albe jos (randul 7 al matricei)
         board[7][0] = "wR";
         board[7][1] = "wN";
         board[7][2] = "wB";
@@ -124,144 +124,121 @@ public class GameService {
         board[7][6] = "wN";
         board[7][7] = "wR";
 
-        // Pionii albi (randul 6 = rang 2)
+        // Punem pionii albi (randul 6 al matricei)
         for (int c = 0; c < 8; c++) {
             board[6][c] = "wP";
         }
 
-        // Albul incepe
+        // Albul incepe mereu
         whiteTurn = true;
     }
 
     /**
-     * Aplica o mutare si returneaza JSON pentru client.
-     *
-     * @param from Patratul sursa (ex: "e2")
-     * @param to   Patratul destinatie (ex: "e4")
+     * Aici se face mutarea propriu-zisa.
+     * Primim de unde pleaca piesa (from) si unde ajunge (to).
+     * Ex: "e2" -> "e4"
      */
     public String applyMove(String from, String to) throws Exception {
-        // Convertim notatia algebrica in indici de array
-        // Coloana: 'a'=0, 'b'=1, ..., 'h'=7
-        // Randul: '8'=0, '7'=1, ..., '1'=7 (inversat pentru array)
+        // Transformam coordonatele din text (a-h, 1-8) in numere pentru matrice (0-7)
+        // 'a' e 0, 'b' e 1 ...
         int fromCol = from.charAt(0) - 'a';
+        // '8' e 0, '1' e 7 (matricea e invers fata de tabla standard)
         int fromRow = 8 - Character.getNumericValue(from.charAt(1));
+
         int toCol = to.charAt(0) - 'a';
         int toRow = 8 - Character.getNumericValue(to.charAt(1));
 
-        // Validam ca indicii sunt in limite
+        // Verificam sa nu iesim de pe tabla (sa nu dea eroare programul)
         if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7 ||
                 toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) {
-//            log.warn("[MOVE] Patrat invalid: {} -> {}", from, to);
-            return objectMapper.writeValueAsString(new ErrorMsg("invalid square"));
+            return objectMapper.writeValueAsString(new ErrorMsg("Ai apasat in afara tablei!"));
         }
 
-        // Luam piesa de pe patratul sursa
+        // Vedem ce piesa vrem sa mutam
         String piece = board[fromRow][fromCol];
         if (piece == null) {
-//            log.warn("[MOVE] Nu exista piesa pe {}", from);
-            return objectMapper.writeValueAsString(new ErrorMsg("no piece at " + from));
+            return objectMapper.writeValueAsString(new ErrorMsg("Nu e nicio piesa acolo!"));
         }
 
         // Verificam daca e randul corect
         boolean isWhitePiece = piece.startsWith("w");
         if (isWhitePiece != whiteTurn) {
-//            log.warn("[MOVE] Nu e randul jucatorului. Piesa: {}, Rand alb: {}", piece, whiteTurn);
             return objectMapper.writeValueAsString(new ErrorMsg("not your turn"));
         }
 
-        // Verificam ce e pe patratul destinatie
+        // Vedem daca am capturat ceva (daca era o piesa la destinatie)
         String captured = board[toRow][toCol];
 
-        // Nu poti captura propria piesa
-        if (captured != null && captured.startsWith(piece.substring(0, 1))) {
-//            log.warn("[MOVE] Incercare de capturare a propriei piese: {} pe {}", captured, to);
-            return objectMapper.writeValueAsString(new ErrorMsg("cannot capture own piece"));
-        }
-
-        // Salvam starea inainte de mutare (pentru undo)
+        // Salvam starea inainte de mutare (ca sa mearga butonul Undo)
         history.push(new GameState(board, whiteTurn));
 
-        // Executam mutarea
+        // MUTAREA PROPRIU-ZISA:
+        // 1. Punem piesa la destinatie
         board[toRow][toCol] = piece;
+        // 2. Stergem piesa de unde a plecat
         board[fromRow][fromCol] = null;
 
-//        log.info("[MOVE] {} muta {} de pe {} pe {}",
-//                isWhitePiece ? "WHITE" : "BLACK", piece, from, to);
-
-        if (captured != null) {
-//            log.info("[CAPTURE] Piesa capturata: {}", captured);
-        }
-
-        // Verificam daca regele a fost capturat -> joc terminat
+        // Verificam daca s-a terminat jocul (daca am mancat un Rege)
         if (captured != null && captured.endsWith("K")) {
-            String winner = isWhitePiece ? "WHITE" : "BLACK";
+            String winner = isWhitePiece ? "ALBUL" : "NEGRUL";
             String result = isWhitePiece ? "1-0" : "0-1";
-//            log.info("[GAME OVER] {} a castigat prin capturarea regelui!", winner);
-            return objectMapper.writeValueAsString(new GameOverMsg("CHECKMATE", result, winner, generateFen()));
+            // Trimitem mesaj ca s-a gata jocul
+            return objectMapper
+                    .writeValueAsString(new GameOverMsg("SAH MAT (Rege Capturat)", result, winner, generateFen()));
         }
 
         // Schimbam randul
         whiteTurn = !whiteTurn;
-//        log.debug("[TURN] Acum e randul: {}", whiteTurn ? "WHITE" : "BLACK");
 
+        // Trimitem noua configuratie la toata lumea
         return objectMapper.writeValueAsString(new MoveAppliedMsg(generateFen(), false));
     }
 
     /**
-     * Genereaza FEN-ul pozitiei curente.
-     * FEN = Forsyth-Edwards Notation - format standard pentru pozitii de sah.
-     * <p>
-     * Exemplu: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1"
+     * Functia asta transforma matricea noastra intr-un text scurt (FEN).
+     * Clientul (interfata grafica) are nevoie de textul asta ca sa deseneze piese.
      */
     private String generateFen() {
         StringBuilder fen = new StringBuilder();
 
-        // Parcurgem fiecare rand (de sus in jos = rang 8 la rang 1)
+        // Luam fiecare rand la rand
         for (int r = 0; r < 8; r++) {
-            int empty = 0; // Contor pentru patrate goale consecutive
+            int empty = 0; // Numaram cate patrate goale sunt
 
             for (int c = 0; c < 8; c++) {
                 String piece = board[r][c];
 
                 if (piece == null) {
-                    // Patrat gol - incrementam contorul
-                    empty++;
+                    empty++; // Inca un loc gol
                 } else {
-                    // Piesa gasita
                     if (empty > 0) {
-                        // Scriem numarul de patrate goale anterioare
-                        fen.append(empty);
+                        fen.append(empty); // Scriem numarul de locuri goale
                         empty = 0;
                     }
-                    // Scriem piesa (majuscula = alb, minuscula = negru)
+                    // Scriem litera piesei
                     fen.append(pieceToFenChar(piece));
                 }
             }
 
-            // Daca randul se termina cu patrate goale
             if (empty > 0) {
                 fen.append(empty);
             }
 
-            // Separator intre randuri (nu dupa ultimul)
             if (r < 7) {
-                fen.append("/");
+                fen.append("/"); // Separator de randuri
             }
         }
 
-        // Adaugam informatii suplimentare: rand la mutare, rocade, en passant, etc
+        // Adaugam infomatii extra (cine e la rand etc)
         fen.append(" ").append(whiteTurn ? "w" : "b").append(" - - 0 1");
 
         return fen.toString();
     }
 
-    /**
-     * Converteste formatul intern al piesei in caracter FEN.
-     * Alb = majuscula, Negru = minuscula
-     */
     private char pieceToFenChar(String piece) {
         boolean isWhite = piece.startsWith("w");
-        char type = piece.charAt(1); // K, Q, R, B, N, P
+        char type = piece.charAt(1);
+        // Piesele albe se scriu cu litere mari, alea negre cu mici
         return isWhite ? Character.toUpperCase(type) : Character.toLowerCase(type);
     }
 }

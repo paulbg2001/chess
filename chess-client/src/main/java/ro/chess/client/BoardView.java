@@ -1,164 +1,162 @@
 package ro.chess.client;
 
-import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.StackPane;
-import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.paint.Color;
+import javafx.scene.layout.StackPane;
 import ro.chess.client.util.BoardUtils;
 
 import java.util.function.BiConsumer;
 
-public class BoardView extends GridPane {
-    private final StackPane[][] cells = new StackPane[8][8];
-    // board[row][col] = piece like "wK", "bQ", null for empty
-    private String[][] board = new String[8][8];
-    private BiConsumer<String, String> onMoveAttempt;
+/**
+ * Tabla de sah "activa".
+ * Extinde TablaBaza (mostenire) si adauga logica pieselor si a click-urilor.
+ */
+public class BoardView extends TablaBaza {
 
-    private String selected;
-    private double cellSize = 80;
+    // Matricea logica de piese (ex: "wP", "bQ")
+    private String[][] piese = new String[8][8];
+
+    // Cine asculta mutarile (ChessApp)
+    private BiConsumer<String, String> moveHandler;
+
+    // Patratelul selectat (ex: "e2")
+    private String patratSelectat = null;
 
     public BoardView() {
-        setHgap(0);
-        setVgap(0);
-        buildGrid();
-        // Set initial position
+        super(); // Apelam constructorul din TablaBaza ca sa deseneze grila
+
+        // Adaugam logica de click pe fiecare patratel format in baza
+        setupClickHandlers();
+
+        // Pozitia de start standard (FEN)
         setPosition("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1");
     }
 
-    public void setCellSize(double size) {
-        this.cellSize = size;
-        rebuildSizes();
-        redraw();
+    /**
+     * Parcurgem celule create de parinte si le punem click handler.
+     */
+    private void setupClickHandlers() {
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                final int rand = r;
+                final int col = c;
+                // 'celule' e protected in TablaBaza, deci il vedem aici
+                celule[r][c].setOnMouseClicked(e -> {
+                    if (e.getButton() == MouseButton.PRIMARY) {
+                        onClickPatrat(rand, col);
+                    }
+                });
+            }
+        }
     }
 
     public void setOnMoveAttempt(BiConsumer<String, String> handler) {
-        this.onMoveAttempt = handler;
+        this.moveHandler = handler;
     }
 
+    /**
+     * Primeste un FEN string si pune piesele pe tabla.
+     */
     public void setPosition(String fen) {
-        parseFen(fen);
-        redraw();
-    }
+        // 1. Golim matricea logica
+        for (int i = 0; i < 8; i++)
+            for (int j = 0; j < 8; j++)
+                piese[i][j] = null;
 
-    private void parseFen(String fen) {
-        // Clear board
+        // 2. Citim FEN-ul
+        String[] bucati = fen.split(" ");
+        String[] randuri = bucati[0].split("/");
+
         for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                board[r][c] = null;
-            }
-        }
-
-        String[] parts = fen.split(" ");
-        String[] ranks = parts[0].split("/");
-
-        for (int r = 0; r < 8 && r < ranks.length; r++) {
-            int col = 0;
-            for (char ch : ranks[r].toCharArray()) {
+            int c = 0;
+            for (char ch : randuri[r].toCharArray()) {
                 if (Character.isDigit(ch)) {
-                    col += Character.getNumericValue(ch);
+                    // Spatii goale
+                    c += Character.getNumericValue(ch);
                 } else {
-                    board[r][col] = fenCharToPiece(ch);
-                    col++;
+                    // Piesa
+                    String culoare = Character.isUpperCase(ch) ? "w" : "b";
+                    String tip = String.valueOf(Character.toUpperCase(ch)); // P, N, B, R, Q, K
+                    piese[r][c] = culoare + tip;
+                    c++;
                 }
             }
         }
+
+        // 3. Desenam efectiv imaginile
+        deseneazaPiese();
     }
 
-    private String fenCharToPiece(char ch) {
-        boolean isWhite = Character.isUpperCase(ch);
-        String side = isWhite ? "w" : "b";
-        char type = Character.toUpperCase(ch);
-        return side + type;
-    }
-
-    private void buildGrid() {
+    private void deseneazaPiese() {
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
-                StackPane cell = new StackPane();
-                cell.setPrefSize(cellSize, cellSize);
-                var light = (r + c) % 2 == 0;
-                var rect = new Rectangle(cellSize, cellSize);
-                rect.setFill(light ? Color.web("#EEEED2") : Color.web("#769656"));
-                cell.getChildren().add(rect);
-                cell.setAlignment(Pos.CENTER);
+                StackPane cell = celule[r][c];
 
-                final int rr = r, cc = c;
-                cell.setOnMouseClicked(e -> {
-                    if (e.getButton() != MouseButton.PRIMARY) return;
-                    var sq = BoardUtils.toSquare(rr, cc);
-                    handleClick(sq, rr, cc);
-                });
+                // Scoatem orice imagine veche (pastram doar Rectangul de fundal - index 0)
+                cell.getChildren().removeIf(node -> node instanceof ImageView);
 
-                cells[r][c] = cell;
-                add(cell, c, r);
+                String codPiesa = piese[r][c];
+                if (codPiesa != null) {
+                    // Cerem imaginea din Assets (cache)
+                    ImageView img = new ImageView(Assets.getImaginePiesa(codPiesa));
+                    img.setFitWidth(MARIME_PATRAT * 0.85);
+                    img.setFitHeight(MARIME_PATRAT * 0.85);
+                    img.setPreserveRatio(true);
+                    img.setMouseTransparent(true); // Click-ul trece prin poza
+                    cell.getChildren().add(img);
+                }
             }
         }
+        // Resetam selectia daca tabla s-a schimbat din exterior
+        patratSelectat = null;
+        evidentiazaPatrat(null);
     }
 
-    private void rebuildSizes() {
-        for (int r = 0; r < 8; r++)
-            for (int c = 0; c < 8; c++) {
-                StackPane cell = cells[r][c];
-                cell.setPrefSize(cellSize, cellSize);
-                Rectangle rect = (Rectangle) cell.getChildren().get(0);
-                rect.setWidth(cellSize);
-                rect.setHeight(cellSize);
-            }
-    }
+    private void onClickPatrat(int rand, int col) {
+        String coordonata = BoardUtils.toSquare(rand, col); // ex: "e4"
+        String piesaAici = piese[rand][col];
 
-    private void redraw() {
-        // Remove all piece images
-        for (var row : cells)
-            for (var cell : row)
-                cell.getChildren().removeIf(n -> n instanceof ImageView);
-
-        // Add piece images based on board state
-        for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                String piece = board[r][c];
-                if (piece == null) continue;
-
-                ImageView iv = new ImageView(Assets.piece(piece));
-                iv.setPreserveRatio(true);
-                iv.setFitWidth(cellSize * 0.8);
-                iv.setFitHeight(cellSize * 0.8);
-                iv.setMouseTransparent(true);
-
-                cells[r][c].getChildren().add(iv);
-            }
-        }
-        clearSelection();
-    }
-
-    private void handleClick(String sq, int row, int col) {
-        String piece = board[row][col];
-        if (selected == null) {
-            if (piece != null) {
-                selected = sq;
-                highlight(sq, true);
+        if (patratSelectat == null) {
+            // Nu am selectat nimic -> incercam sa selectam
+            if (piesaAici != null) {
+                patratSelectat = coordonata;
+                evidentiazaPatrat(coordonata);
                 setCursor(Cursor.HAND);
             }
-            return;
+        } else {
+            // Aveam deja o piesa selectata -> vrem sa MUTAM aici
+            if (moveHandler != null) {
+                moveHandler.accept(patratSelectat, coordonata);
+            }
+
+            // Indiferent ce se intampla, deselectam dupa click
+            patratSelectat = null;
+            evidentiazaPatrat(null);
+            setCursor(Cursor.DEFAULT);
         }
-        if (onMoveAttempt != null) onMoveAttempt.accept(selected, sq);
-        clearSelection();
     }
 
-    private void highlight(String sq, boolean on) {
-        int c = BoardUtils.fileIndex(sq.charAt(0));
-        int r = BoardUtils.rankIndex(sq.charAt(1));
-        var rect = (Rectangle) cells[r][c].getChildren().get(0);
-        rect.setStroke(on ? Color.GOLD : null);
-        rect.setStrokeWidth(on ? 3 : 0);
-    }
+    // Deseneaza un contur galben pe patratul selectat
+    private void evidentiazaPatrat(String sq) {
+        // Stergem conturul de peste tot
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                Rectangle bg = (Rectangle) celule[r][c].getChildren().get(0);
+                bg.setStroke(null);
+            }
+        }
 
-    private void clearSelection() {
-        if (selected != null) highlight(selected, false);
-        selected = null;
-        setCursor(Cursor.DEFAULT);
+        if (sq != null) {
+            // Calculam rand/col din string (ex: "e4") folosind BoardUtils
+            int c = BoardUtils.getIndexColoana(sq.charAt(0));
+            int r = BoardUtils.getIndexRand(sq.charAt(1));
+
+            Rectangle bg = (Rectangle) celule[r][c].getChildren().get(0);
+            bg.setStroke(Color.GOLD);
+            bg.setStrokeWidth(4);
+        }
     }
 }
